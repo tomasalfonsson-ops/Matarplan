@@ -187,7 +187,15 @@
 
         // --- Gemini API Function ---
         async function callGeminiAPI(prompt) {
-            const apiKey = ""; 
+            // MIKILVÆGT: Þú þarft að setja inn þinn eigin API lykil frá Google AI Studio hér.
+            // Farðu á aistudio.google.com til að fá ókeypis lykil.
+            // Þegar þú ert með lykilinn, breyttu þessari línu:
+            const apiKey = "AbCdEfGhIjKlMnOpQrStUvWxYz123456789"; 
+            
+            if (apiKey === "AbCdEfGhIjKlMnOpQrStUvWxYz123456789") {
+                return "<h3>Villa: API lykill vantar</h3><p>Til að virkja gervigreindina þarftu að setja inn þinn eigin API lykil í kóðann. Fylgdu þessum skrefum:</p><ol class='list-decimal list-inside mt-2'><li>Farðu á <b>aistudio.google.com</b>.</li><li>Skráðu þig inn og smelltu á 'Get API key'.</li><li>Búðu til nýjan lykil og afritaðu hann.</li><li>Opnaðu <b>index.html</b> skrána og límdu lykilinn í staðinn fyrir 'SETTU_INN_ÞINN_EIGIN_API_LYKIL_HÉR'.</li></ol>";
+            }
+
             const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
             
             const payload = {
@@ -220,6 +228,9 @@
         }
 
         function formatRecipe(text) {
+             if (text.includes("Villa: API lykill vantar")) {
+                return text;
+            }
             return text
                 .replace(/Titill:/g, '<h3 class="text-xl font-bold text-teal-700 mb-2">')
                 .replace(/Hráefni:/g, '</h3><h4 class="text-lg font-semibold text-stone-800 mt-4 mb-2">Hráefni</h4><ul class="list-disc list-inside text-stone-700">')
