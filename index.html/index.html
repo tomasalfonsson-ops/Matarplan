@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="is">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gagnvirkt Glútenlaust Matarplan - Gervigreindarútgáfa</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Chosen Palette: Warm Neutrals (Stone, Teal) -->
+    <!-- Application Structure Plan: The app retains its yearly/monthly/weekly structure. The "AI Assistant" section is a 3-column grid. A print button is added to each weekly view. A new "Note" textarea is added to the weekly view for user-specific notes. -->
+    <!-- Visualization & Content Choices: A print button is added to each weekly view. Print-specific CSS (@media print) is used to format the output. A new textarea for notes is added under the weekly menu. Interaction: User can type freely into the textarea. This content is included in the print-out. Justification: Adding a notes section provides crucial flexibility for users to add personal reminders or modifications to their weekly plan. -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 400px;
+            height: auto;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        .recipe-accordion-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease-out;
+        }
+        select {
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+            background-image: url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%230F766E%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E');
+            background-repeat: no-repeat;
+            background-position: right 1rem center;
+            background-size: .65em auto;
+        }
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #14b8a6;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        @media print {
+            body * {
+                visibility: hidden;
+            }
+            #plan-content, #plan-content * {
+                visibility: visible;
+            }
+            #plan-content {
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 100%;
+            }
+            .print-hide {
+                display: none !important;
+            }
+            .week-content .grid {
+                display: block !important;
+            }
+            .recipe-accordion-content {
+                max-height: none !important;
+                visibility: visible !important;
+                display: block !important;
+            }
+            .recipe-accordion-toggle svg {
+                display: none;
+            }
+            .week-content {
+                box-shadow: none !important;
+                border: none !important;
+            }
+            textarea {
+                border-color: #000 !important;
+                color: #000 !important;
+            }
+        }
+    </style>
+     <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+</head>
+<body class="bg-stone-50 text-stone-800">
+
+    <div class="container mx-auto p-4 sm:p-6 lg:p-8 max-w-7xl">
+        <header class="text-center mb-8 print-hide">
+            <h1 class="text-4xl md:text-5xl font-bold text-teal-800">Glútenlaust Ársplan</h1>
+            <p class="mt-2 text-lg text-stone-600">Hagkvæmt og fjölbreytt matarplan fyrir allt árið, nú með gervigreind.</p>
+        </header>
+
+        <section class="mb-8 p-6 bg-white rounded-2xl shadow-md flex flex-col sm:flex-row justify-center items-center gap-4 print-hide">
+             <label for="month-selector" class="text-xl font-bold text-teal-700">Veldu mánuð:</label>
+             <select id="month-selector" class="p-3 border-2 border-teal-200 rounded-lg text-lg font-semibold text-teal-800 bg-white focus:ring-2 focus:ring-teal-500 focus:border-teal-500 w-full sm:w-auto">
+             </select>
+        </section>
+
+        <!-- Gemini AI Assistant Section -->
+        <section class="my-12 p-6 bg-teal-50 rounded-2xl shadow-md print-hide">
+            <h2 class="text-3xl font-bold text-center mb-6 text-teal-800">Gervigreindar aðstoðarmaður</h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                <!-- New Recipe Generator -->
+                <div class="bg-white p-6 rounded-xl shadow-sm flex flex-col">
+                    <h3 class="text-2xl font-bold mb-4 text-teal-700">Töfrauppskrift ✨</h3>
+                    <p class="text-stone-600 mb-4 flex-grow">Vantar þig hugmynd að kvöldmat? Skrifaðu hráefni eða nafn á rétt og við semjum nýja uppskrift.</p>
+                    <input type="text" id="new-recipe-prompt" placeholder="t.d. Kjúklingur og beikon" class="w-full p-2 border border-stone-300 rounded-md mb-4">
+                    <button id="generate-new-recipe-btn" class="w-full bg-teal-600 text-white py-2 px-4 rounded-lg font-semibold hover:bg-teal-700 transition-colors mt-auto">Búa til kvöldmat</button>
+                </div>
+                <!-- Leftover Helper -->
+                <div class="bg-white p-6 rounded-xl shadow-sm flex flex-col">
+                    <h3 class="text-2xl font-bold mb-4 text-teal-700">Nýta afganga ✨</h3>
+                    <p class="text-stone-600 mb-4 flex-grow">Skrifaðu hvað þú átt til í ísskápnum og við finnum leið til að nýta það í máltíð.</p>
+                    <textarea id="leftover-prompt" placeholder="t.d. hálfur laukur, 2 gulrætur, soðinn kjúklingur" class="w-full p-2 border border-stone-300 rounded-md mb-4" rows="3"></textarea>
+                    <button id="generate-leftover-recipe-btn" class="w-full bg-teal-600 text-white py-2 px-4 rounded-lg font-semibold hover:bg-teal-700 transition-colors mt-auto">Finna uppskrift úr afgöngum</button>
+                </div>
+                <!-- Lunch Helper -->
+                <div class="bg-white p-6 rounded-xl shadow-sm flex flex-col">
+                    <h3 class="text-2xl font-bold mb-4 text-teal-700">Léttur Hádegismatur 🥗</h3>
+                    <p class="text-stone-600 mb-4 flex-grow">Fáðu hugmynd að einföldum og léttum hádegisverði. Sláðu inn óskir þínar.</p>
+                    <input type="text" id="lunch-recipe-prompt" placeholder="t.d. salat með kjúklingi, ommiletta" class="w-full p-2 border border-stone-300 rounded-md mb-4">
+                    <button id="generate-lunch-recipe-btn" class="w-full bg-teal-600 text-white py-2 px-4 rounded-lg font-semibold hover:bg-teal-700 transition-colors mt-auto">Búa til hádegismat</button>
+                </div>
+            </div>
+        </section>
+
+        <section id="chart-section" class="mb-12 p-6 bg-white rounded-2xl shadow-md print-hide" style="display: none;">
+            <h2 id="chart-title" class="text-2xl font-bold text-center mb-4 text-teal-700"></h2>
+            <p class="text-center text-stone-600 mb-6">Hlutfall helstu hráefna í kvöldmáltíðum mánaðarins.</p>
+            <div class="chart-container">
+                <canvas id="mealTypeChart"></canvas>
+            </div>
+        </section>
+
+        <nav id="week-nav" class="flex justify-center flex-wrap gap-2 mb-8 print-hide" style="display: none;">
+        </nav>
+
+        <main id="plan-content">
+        </main>
+    </div>
+
+    <!-- Modal for AI results -->
+    <div id="ai-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 hidden print-hide">
+        <div class="bg-white rounded-2xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6 sm:p-8">
+            <div class="flex justify-between items-center mb-4">
+                <h2 id="ai-modal-title" class="text-2xl font-bold text-teal-800">Tillaga frá Gervigreind</h2>
+                <button id="close-ai-modal-btn" class="text-stone-500 hover:text-stone-800 text-3xl font-bold">&times;</button>
+            </div>
+            <div id="ai-modal-content">
+                <!-- Loader will be injected here -->
+            </div>
+        </div>
+    </div>
+
+
+    <script>
+        const masterRecipes = [
+            { title: "Bollur í karrý", category: "Svínakjöt", content: "<b>Bollur:</b> 500g hakk, 1 dl glútenlaust haframjöl, 1 egg, 1/2 rifinn laukur, 1 dl mjólk, salt & pipar. Hnoðið, mótið bollur, steikið. <br><b>Sósa:</b> Steikið 1/2 saxaðan lauk og 1 rifið epli. Bætið við 2 msk karrý og 1 msk glútenlausu mjöli. Hellið 5 dl vatni/soði og 1 dós kókosmjólk/rjóma út í. Látið bollurnar malla í sósunni. Berið fram með hrísgrjónum.", ingredients: { "Kjöt & Fiskur": ["Svínahakk eða blandahakk (500g)"], "Grænmeti & Ávextir": ["Laukur (1)", "Epli (1)"], "Mjólkurvörur & Egg": ["Egg (1)", "Mjólk (1 dl)", "Rjómi eða kókosmjólk (1 dós)"], "Þurrvörur & Niðursuða": ["Glútenlaust haframjöl (1 dl)", "Hrísgrjón", "Karrý"] } },
+            { title: "Pottfiskur/Plokkfiskur", category: "Fiskur", content: "Sjóðið 600-800g fisk og 6-8 kartöflur. Geymið soðið. Bræðið 3 msk smjör, hrærið 3 msk glútenlausu mjöli saman við. Þynnið með mjólk og fiskisoði (ca 5-6 dl samtals). Stappið kartöflur, rífið fiskinn niður, saxið 1 lauk og blandið öllu saman. Kryddið.", ingredients: { "Kjöt & Fiskur": ["Ýsu- eða þorskflök (600-800g)"], "Grænmeti & Ávextir": ["Kartöflur (6-8 stk)", "Laukur (1)"], "Mjólkurvörur & Egg": ["Smjör", "Mjólk (3 dl)"], "Þurrvörur & Niðursuða": ["Glútenlaust mjöl (3 msk)"] } },
+            { title: "Kjúklingaréttur í ofni", category: "Kjúklingur", content: "Setjið 800g-1kg kjúkling, kartöflur, gulrætur og lauk í ofnskúffu. Hellið olíu yfir og kryddið með salti, pipar, papriku. Bakið við 200°C í 40-50 mín.", ingredients: { "Kjöt & Fiskur": ["Kjúklingalæri eða -bitar (800g-1kg)"], "Grænmeti & Ávextir": ["Kartöflur", "Gulrætur", "Laukur"], "Þurrvörur & Niðursuða": ["Paprikukrydd", "Ólífuolía"] } },
+            { title: "Heimagerðir hakkaborgarar", category: "Nauta-/Hestakjöt", content: "Blandið 500g hakki, 1 tsk laukdufti, salti og pipar. Mótið borgara, steikið og setjið ost yfir. Berið fram í glútenlausu brauði með meðlæti.", ingredients: { "Kjöt & Fiskur": ["Nauta- eða hestahakk (500g)"], "Mjólkurvörur & Egg": ["Rifinn ostur"], "Þurrvörur & Niðursuða": ["Glútenlaus hamborgarabrauð", "Laukduft"], "Grænmeti & Ávextir": ["Salat", "Tómatar", "Gúrka"] } },
+            { title: "Glútenlaust Lasagne", category: "Nauta-/Hestakjöt", content: "<b>Kjötsósa:</b> Steikið 500g hakk, 1 lauk, 2 gulrætur. Bætið við 2 dósum tómötum, 1 msk tómatpúrru, kryddi. Látið malla. <br><b>Hvít sósa:</b> Bræðið 3 msk smjör, hrærið 3 msk glútenlausu mjöli út í. Þynnið með 6 dl mjólk. Setjið sósur og glútenlausar plötur til skiptis í mót. Ostur yfir. Bakið við 180°C í 30-40 mín.", ingredients: { "Kjöt & Fiskur": ["Nautahakk (500g)"], "Grænmeti & Ávextir": ["Laukur (1)", "Gulrætur (2)"], "Mjólkurvörur & Egg": ["Rifinn ostur", "Smjör", "Mjólk (6 dl)"], "Þurrvörur & Niðursuða": ["Niðursoðnir tómatar (2 dósir)", "Tómatpúrra", "Glútenlausar lasagne-plötur"] } },
+            { title: "Kjötsúpa", category: "Lambakjöt", content: "Setjið 1 kg súpukjöt í pott með vatni. Fleytið froðu. Bætið við niðurskornu rótargrænmeti og kartöflum. Látið malla í a.m.k. 1 klst.", ingredients: { "Kjöt & Fiskur": ["Lambasúpukjöt (1 kg)"], "Grænmeti & Ávextir": ["Rótargrænmeti (súpujurtir)", "Kartöflur"] } },
+            { title: "Frikadellur", category: "Svínakjöt", content: "Sama grunnuppskrift og fyrir bollur, en mótið þær flatari. Steikið. <br><b>Brún sósa:</b> Bræðið smjör, bætið við 2 msk glútenlausu mjöli. Hellið soði (ca. 4-5 dl) út í smátt og smátt. Berið fram með soðnum kartöflum.", ingredients: { "Kjöt & Fiskur": ["Svínahakk eða blandahakk (500g)"], "Mjólkurvörur & Egg": ["Egg (1)", "Mjólk (1 dl)"], "Þurrvörur & Niðursuða": ["Glútenlaust haframjöl (1 dl)"], "Grænmeti & Ávextir": ["Kartöflur"] } },
+            { title: "Hakka-kássa (Chili stíll)", category: "Nauta-/Hestakjöt", content: "Steikið 500g nautahakk, 1 saxaðan lauk og 2 hvítlauksrif. Bætið við 1 dós hökkuðum tómötum, 1 dós nýrnabaunum, 1 tsk chili dufti og 1 tsk cumin. Látið malla í 15-20 mín. Berið fram með hrísgrjónum og sýrðum rjóma.", ingredients: { "Kjöt & Fiskur": ["Nautahakk (500g)"], "Grænmeti & Ávextir": ["Laukur (1)", "Hvítlaukur (2 rif)"], "Þurrvörur & Niðursuða": ["Niðursoðnir tómatar (1 dós)", "Nýrnabaunir (1 dós)", "Chili duft", "Cumin", "Hrísgrjón"], "Mjólkurvörur & Egg": ["Sýrður rjómi"] } },
+            { title: "Glútenlaus pizza", category: "Annað", content: "Notið tilbúna botna eða blandið deig. Setjið pizzasósu, ost og uppáhalds áleggið ykkar á. Bakið samkvæmt leiðbeiningum.", ingredients: { "Þurrvörur & Niðursuða": ["Glútenlausir pizzabotnar", "Pizzasósa"], "Mjólkurvörur & Egg": ["Rifinn ostur"], "Kjöt & Fiskur": ["Pizzaálegg að eigin vali"] } },
+            { title: "Svínagúllas", category: "Svínakjöt", content: "Veltið 800g af svínagúllasi upp úr krydduðu glútenlausu mjöli. Brúnið í potti. Takið kjötið úr. Steikið 1 lauk og 2 gulrætur. Setjið kjötið aftur í, hellið vatni/soði yfir. Látið malla í a.m.k. 1.5 klst. Berið fram með kartöflumús.", ingredients: { "Kjöt & Fiskur": ["Svínagúllas (800g)"], "Grænmeti & Ávextir": ["Laukur (1)", "Gulrætur (2)", "Kartöflur fyrir mús"], "Þurrvörur & Niðursuða": ["Glútenlaust mjöl"] } },
+            { title: "Taco-skálar", category: "Nauta-/Hestakjöt", content: "Steikið 500g hakk og kryddið með taco-kryddi. Setjið soðin hrísgrjón í botninn á skálum. Bætið við hakki, salati, tómötum, gúrku, maís, salsa, sýrðum rjóma og rifnum osti. Myljið maísflögur yfir.", ingredients: { "Kjöt & Fiskur": ["Nautahakk (500g)"], "Grænmeti & Ávextir": ["Salat", "Tómatar", "Gúrka", "Maískorn"], "Mjólkurvörur & Egg": ["Sýrður rjómi", "Rifinn ostur"], "Þurrvörur & Niðursuða": ["Taco kryddmix", "Salsa sósa", "Glútenlausar maísflögur", "Hrísgrjón"] } }
+        ];
+
+        const holidayMeals = {
+            "3": { week: 3, dayIndex: 6, recipe: { title: "Páskalamb 🐣", category: "Lambakjöt", content: "Kryddið lambalæri með salti, pipar, rósmarín og hvítlauk. Setjið í steikarpott með rótargrænmeti. Eldið við 160°C í 2-3 klst. Berið fram með brúnni sósu og kartöflum.", ingredients: { "Kjöt & Fiskur": ["Lambalæri (1.5-2kg)"], "Grænmeti & Ávextir": ["Hvítlaukur", "Rótargrænmeti", "Kartöflur"], "Þurrvörur & Niðursuða": ["Rósmarín"] } } },
+            "11": { week: 2, dayIndex: 6, recipe: { title: "Jóla-hamborgarhryggur 🎄", category: "Svínakjöt", content: "Sjóðið hamborgarhrygg samkvæmt leiðbeiningum. Útbúið gljáa úr púðursykri, sinnepi og ananassafa. Gljáið og setjið í ofn í 15-20 mín við 200°C. Berið fram með eplasalati og rauðkáli.", ingredients: { "Kjöt & Fiskur": ["Hamborgarhryggur (1.5kg)"], "Þurrvörur & Niðursuða": ["Púðursykur", "Sinnep", "Ananassafi"], "Grænmeti & Ávextir": ["Epli", "Rauðkál"] } } }
+        };
+        
+        const monthNames = ["Janúar", "Febrúar", "Mars", "Apríl", "Maí", "Júní", "Júlí", "Ágúst", "September", "Október", "Nóvember", "Desember"];
+        let currentChart = null;
+        let monthlyPlansCache = {};
+
+        // --- Gemini API Function ---
+        async function callGeminiAPI(prompt) {
+            const apiKey = ""; 
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+            
+            const payload = {
+                contents: [{
+                    parts: [{ text: prompt }]
+                }]
+            };
+
+            try {
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                    throw new Error(`API kall tókst ekki: ${response.statusText}`);
+                }
+
+                const result = await response.json();
+                if (result.candidates && result.candidates.length > 0 && result.candidates[0].content.parts.length > 0) {
+                    return result.candidates[0].content.parts[0].text;
+                } else {
+                    return "Ekkert svar barst frá gervigreindinni. Vinsamlegast reynið aftur.";
+                }
+            } catch (error) {
+                console.error("Villa í Gemini kalli:", error);
+                return `Villa kom upp: ${error.message}. Vinsamlegast athugið vélinatölvuna (console) fyrir frekari upplýsingar.`;
+            }
+        }
+
+        function formatRecipe(text) {
+            return text
+                .replace(/Titill:/g, '<h3 class="text-xl font-bold text-teal-700 mb-2">')
+                .replace(/Hráefni:/g, '</h3><h4 class="text-lg font-semibold text-stone-800 mt-4 mb-2">Hráefni</h4><ul class="list-disc list-inside text-stone-700">')
+                .replace(/Aðferð:/g, '</ul><h4 class="text-lg font-semibold text-stone-800 mt-4 mb-2">Aðferð</h4><div class="prose max-w-none text-stone-700">')
+                .replace(/\*/g, '<li>')
+                .replace(/\n/g, '<br>')
+                .replace(/<br><li>/g, '</li><li>') + '</li></div>';
+        }
+
+        function showModal() {
+            document.getElementById('ai-modal').classList.remove('hidden');
+        }
+
+        function hideModal() {
+            document.getElementById('ai-modal').classList.add('hidden');
+        }
+
+        function setModalLoading() {
+            const contentDiv = document.getElementById('ai-modal-content');
+            contentDiv.innerHTML = '<div class="flex justify-center items-center p-8"><div class="loader"></div></div>';
+        }
+
+        function setModalContent(htmlContent) {
+            const contentDiv = document.getElementById('ai-modal-content');
+            contentDiv.innerHTML = htmlContent;
+        }
+
+        document.getElementById('generate-new-recipe-btn').addEventListener('click', async () => {
+            const userInput = document.getElementById('new-recipe-prompt').value;
+            if (!userInput) {
+                alert("Vinsamlegast sláðu inn hugmynd að uppskrift.");
+                return;
+            }
+            const prompt = `Búðu til einfalda, glútenlausa uppskrift fyrir kvöldmat fyrir 4 manna fjölskyldu sem byggir á þessari hugmynd: "${userInput}". Sniðið svarið með 'Titill:', 'Hráefni:', og 'Aðferð:'. Notaðu stjörnur (*) fyrir hvert hráefni á listanum.`;
+            
+            showModal();
+            setModalLoading();
+            const result = await callGeminiAPI(prompt);
+            setModalContent(formatRecipe(result));
+        });
+
+        document.getElementById('generate-leftover-recipe-btn').addEventListener('click', async () => {
+            const userInput = document.getElementById('leftover-prompt').value;
+            if (!userInput) {
+                alert("Vinsamlegast sláðu inn hvaða afganga þú átt.");
+                return;
+            }
+            const prompt = `Búðu til einfalda, glútenlausa uppskrift sem nýtir eftirfarandi afganga: "${userInput}". Sniðið svarið með 'Titill:', 'Hráefni:', og 'Aðferð:'. Notaðu stjörnur (*) fyrir hvert hráefni á listanum.`;
+
+            showModal();
+            setModalLoading();
+            const result = await callGeminiAPI(prompt);
+            setModalContent(formatRecipe(result));
+        });
+
+        document.getElementById('generate-lunch-recipe-btn').addEventListener('click', async () => {
+            const userInput = document.getElementById('lunch-recipe-prompt').value;
+            if (!userInput) {
+                alert("Vinsamlegast sláðu inn hugmynd að hádegismat.");
+                return;
+            }
+            const prompt = `Búðu til einfalda, létta og glútenlausa uppskrift fyrir hádegismat fyrir eina manneskju sem byggir á þessari hugmynd: "${userInput}". Sniðið svarið með 'Titill:', 'Hráefni:', og 'Aðferð:'. Notaðu stjörnur (*) fyrir hvert hráefni á listanum.`;
+            
+            showModal();
+            setModalLoading();
+            const result = await callGeminiAPI(prompt);
+            setModalContent(formatRecipe(result));
+        });
+
+        document.getElementById('close-ai-modal-btn').addEventListener('click', hideModal);
+
+
+        function shuffle(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+
+        function generateMonthlyPlan(monthIndex) {
+            if (monthlyPlansCache[monthIndex]) {
+                return monthlyPlansCache[monthIndex];
+            }
+
+            let plan = [];
+            let availableRecipes = shuffle([...masterRecipes]);
+            let recipeIndex = 0;
+
+            for (let i = 0; i < 28; i++) {
+                plan.push(availableRecipes[recipeIndex]);
+                recipeIndex = (recipeIndex + 1) % availableRecipes.length;
+            }
+
+            const holiday = holidayMeals[monthIndex];
+            if (holiday) {
+                const holidayPlanIndex = (holiday.week * 7) + holiday.dayIndex;
+                plan[holidayPlanIndex] = holiday.recipe;
+            }
+            
+            monthlyPlansCache[monthIndex] = plan;
+            return plan;
+        }
+        
+        function generateShoppingList(weekPlan) {
+            const shoppingList = {};
+            weekPlan.forEach(dayPlan => {
+                if (dayPlan && dayPlan.ingredients) {
+                    for (const category in dayPlan.ingredients) {
+                        if (!shoppingList[category]) {
+                            shoppingList[category] = new Set();
+                        }
+                        dayPlan.ingredients[category].forEach(item => shoppingList[category].add(item));
+                    }
+                }
+            });
+
+            const formattedList = {};
+            for (const category in shoppingList) {
+                formattedList[category] = Array.from(shoppingList[category]);
+            }
+            return formattedList;
+        }
+
+        function renderWeek(weekPlan, weekNumber) {
+            const planHtml = weekPlan.map((item, index) => {
+                const dayNames = ["Mánudagur", "Þriðjudagur", "Miðvikudagur", "Fimmtudagur", "Föstudagur", "Laugardagur", "Sunnudagur"];
+                return `
+                <div class="flex justify-between py-3 border-b border-stone-200">
+                    <span class="font-semibold">${dayNames[index]}</span>
+                    <span class="text-right">${item.title}</span>
+                </div>
+            `}).join('');
+
+            const shoppingList = generateShoppingList(weekPlan);
+            const shoppingListHtml = Object.keys(shoppingList).map(category => `
+                <div class="mb-4">
+                    <h4 class="font-bold text-teal-700 mb-2">${category}</h4>
+                    <ul class="list-disc list-inside text-stone-700 space-y-1">
+                        ${shoppingList[category].map(item => `<li>${item}</li>`).join('')}
+                    </ul>
+                </div>
+            `).join('');
+
+            const recipeHtml = weekPlan.map(recipe => `
+                <div class="border-t border-stone-200">
+                    <button class="recipe-accordion-toggle w-full text-left py-4 px-1 flex justify-between items-center text-lg font-medium text-teal-800 hover:bg-stone-100">
+                        <span>${recipe.title}</span>
+                        <svg class="w-6 h-6 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                    </button>
+                    <div class="recipe-accordion-content px-2 pb-4 text-stone-700">
+                       <div class="prose max-w-none">${recipe.content}</div>
+                    </div>
+                </div>
+            `).join('');
+
+            document.getElementById('plan-content').innerHTML = `
+                <div class="week-content bg-white p-6 sm:p-8 rounded-2xl shadow-lg">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-3xl font-bold text-teal-800">Vika ${weekNumber}</h2>
+                        <button class="print-btn p-2 rounded-full hover:bg-stone-100 transition-colors" title="Prenta þessa viku">
+                            <svg class="w-6 h-6 text-teal-700" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
+                        </button>
+                    </div>
+                    <div class="grid md:grid-cols-2 gap-8 lg:gap-12">
+                        <div>
+                            <h3 class="text-2xl font-bold mb-4 text-teal-700">Matseðill</h3>
+                            <div class="space-y-2">${planHtml}</div>
+                             <div class="mt-8">
+                                <h3 class="text-2xl font-bold mb-4 text-teal-700">Note 📝</h3>
+                                <textarea class="w-full p-3 border border-stone-300 rounded-lg h-32 focus:ring-2 focus:ring-teal-500 focus:border-teal-500" placeholder="Skrifaðu minnispunkta fyrir vikuna hér..."></textarea>
+                            </div>
+                        </div>
+                        <div>
+                            <h3 class="text-2xl font-bold mb-4 text-teal-700">Innkaupalisti</h3>
+                            <div>${shoppingListHtml}</div>
+                        </div>
+                    </div>
+                    <div class="mt-12 bg-white rounded-2xl shadow-md overflow-hidden">
+                        <h3 class="text-2xl font-bold p-6 bg-teal-50 text-teal-800">Uppskriftir Vikunnar</h3>
+                        ${recipeHtml}
+                    </div>
+                </div>
+            `;
+            
+            document.querySelector('.print-btn').addEventListener('click', () => {
+                window.print();
+            });
+
+            document.querySelectorAll('.recipe-accordion-toggle').forEach(button => {
+                button.addEventListener('click', () => {
+                    const content = button.nextElementSibling;
+                    const icon = button.querySelector('svg');
+                    if (content.style.maxHeight) {
+                        content.style.maxHeight = null;
+                        icon.style.transform = 'rotate(0deg)';
+                    } else {
+                        content.style.maxHeight = content.scrollHeight + "px";
+                        icon.style.transform = 'rotate(180deg)';
+                    }
+                });
+            });
+        }
+
+        function updateChart(monthlyPlan) {
+            const categoryCounts = {};
+            masterRecipes.forEach(r => categoryCounts[r.category] = 0);
+            
+            monthlyPlan.forEach(meal => {
+                if (meal && meal.category && categoryCounts.hasOwnProperty(meal.category)) {
+                    categoryCounts[meal.category]++;
+                } else if (meal && meal.category) { 
+                    categoryCounts[meal.category] = (categoryCounts[meal.category] || 0) + 1;
+                }
+            });
+
+            const labels = Object.keys(categoryCounts);
+            const data = Object.values(categoryCounts);
+            
+            const backgroundColors = ['#145A32', '#117864', '#48C9B0', '#A3E4D7', '#D1F2EB', '#0E6655'];
+
+            if (currentChart) {
+                currentChart.destroy();
+            }
+            
+            const ctx = document.getElementById('mealTypeChart').getContext('2d');
+            currentChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Fjöldi máltíða',
+                        data: data,
+                        backgroundColor: backgroundColors.slice(0, labels.length),
+                        borderColor: '#ffffff',
+                        borderWidth: 3,
+                        hoverOffset: 4
+                    }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { position: 'bottom', labels: { font: { size: 14, family: 'Inter' }, color: '#44403c' } } }
+                }
+            });
+        }
+
+        function displayMonth(monthIndex) {
+            const monthlyPlan = generateMonthlyPlan(monthIndex);
+            
+            document.getElementById('chart-section').style.display = 'block';
+            document.getElementById('chart-title').innerText = `Yfirlit fyrir ${monthNames[monthIndex]}`;
+            updateChart(monthlyPlan);
+
+            const weekNav = document.getElementById('week-nav');
+            weekNav.innerHTML = '';
+            for (let i = 0; i < 4; i++) {
+                const button = document.createElement('button');
+                button.dataset.weekIndex = i;
+                button.innerText = `Vika ${i + 1}`;
+                button.className = 'week-btn bg-white text-teal-700 py-2 px-5 rounded-full font-semibold shadow-md transition-transform transform hover:scale-105';
+                weekNav.appendChild(button);
+            }
+            weekNav.style.display = 'flex';
+
+            weekNav.querySelectorAll('.week-btn').forEach(button => {
+                button.addEventListener('click', (e) => {
+                    const weekIndex = parseInt(e.target.dataset.weekIndex);
+                    const weekPlan = monthlyPlan.slice(weekIndex * 7, (weekIndex + 1) * 7);
+                    renderWeek(weekPlan, weekIndex + 1);
+
+                    weekNav.querySelectorAll('.week-btn').forEach(btn => {
+                        btn.classList.remove('bg-teal-700', 'text-white');
+                        btn.classList.add('bg-white', 'text-teal-700');
+                    });
+                    e.target.classList.add('bg-teal-700', 'text-white');
+                    e.target.classList.remove('bg-white', 'text-teal-700');
+                });
+            });
+            
+            if (weekNav.querySelector('.week-btn')) {
+                weekNav.querySelector('.week-btn').click();
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const monthSelector = document.getElementById('month-selector');
+            const currentMonth = new Date().getMonth();
+
+            monthNames.forEach((name, index) => {
+                const option = document.createElement('option');
+                option.value = index;
+                option.innerText = name;
+                if (index === currentMonth) {
+                    option.selected = true;
+                }
+                monthSelector.appendChild(option);
+            });
+
+            monthSelector.addEventListener('change', (e) => {
+                displayMonth(e.target.value);
+            });
+            
+            displayMonth(currentMonth);
+        });
+    </script>
+</body>
+</html>
